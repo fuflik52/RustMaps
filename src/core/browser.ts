@@ -19,7 +19,6 @@ export class BrowserManager {
       this.browser = await puppeteer.launch({
         headless: this.options.headless, // 'new' is default for true now, or use 'shell' for old headless
         args: [
-          '--host-resolver-rules=MAP rustmaps.ru 185.185.124.28',
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
