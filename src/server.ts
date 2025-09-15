@@ -33,30 +33,42 @@ async function initializeComponents() {
   try {
     logger.info('🔧 Инициализация веб-сервера...');
     
-    // Инициализируем браузер
-    browserManager = new BrowserManager();
-    await browserManager.initialize();
-    
-    // Создаем парсер
-    mapParser = new MapParser(browserManager, DEFAULT_CONFIG.baseUrl);
-    
-    // Инициализируем кеш-менеджер
+    // Инициализируем кеш-менеджер (не требует браузера)
+    logger.info('💾 Инициализация кеш-менеджера...');
     cacheManager = new CacheManager('./output');
     await cacheManager.initialize();
+    logger.success('✅ Кеш-менеджер инициализирован');
+    
+    // Пробуем инициализировать браузер (может не работать в production)
+    try {
+      logger.info('🌐 Инициализация браузера...');
+      browserManager = new BrowserManager();
+      await browserManager.initialize();
+      logger.success('✅ Браузер инициализирован');
+      
+      // Создаем парсер только если браузер инициализирован
+      logger.info('🔍 Создание парсера...');
+      mapParser = new MapParser(browserManager, DEFAULT_CONFIG.baseUrl);
+      logger.success('✅ Парсер создан');
+    } catch (browserError) {
+      logger.warn('⚠️ Браузер не может быть инициализирован (режим только кеша):', browserError as Error);
+      logger.info('📖 Веб-интерфейс будет работать только с существующими данными кеша');
+    }
     
     isInitialized = true;
     logger.success('✅ Компоненты инициализированы');
     
   } catch (error) {
-    logger.error('❌ Ошибка инициализации:', error as Error);
+    logger.error('❌ Критическая ошибка инициализации:', error as Error);
+    logger.error('Stack trace:', (error as Error).stack);
     throw error;
   }
 }
 
 // Функция загрузки карт из кеша или парсинга
 async function loadMaps(): Promise<MapData[]> {
-  if (!mapParser || !cacheManager) {
-    throw new Error('Компоненты не инициализированы');
+  if (!cacheManager) {
+    throw new Error('Кеш-менеджер не инициализирован');
   }
 
   try {
@@ -68,16 +80,21 @@ async function loadMaps(): Promise<MapData[]> {
       return cachedMaps;
     }
     
-    // Если кеш пуст, парсим заново
-    logger.info('🔍 Парсинг карт с rustmaps.ru...');
-    const newMaps = await mapParser.parseMainPage();
-    
-    if (newMaps.length > 0) {
-      await cacheManager.updateDiscoveredMaps(newMaps);
-      logger.success(`✅ Спарсено ${newMaps.length} карт`);
+    // Если кеш пуст и парсер доступен, парсим заново
+    if (mapParser) {
+      logger.info('🔍 Парсинг карт с rustmaps.ru...');
+      const newMaps = await mapParser.parseMainPage();
+      
+      if (newMaps.length > 0) {
+        await cacheManager.updateDiscoveredMaps(newMaps);
+        logger.success(`✅ Спарсено ${newMaps.length} карт`);
+      }
+      
+      return newMaps;
+    } else {
+      logger.warn('⚠️ Парсер недоступен, кеш пуст. Возвращаем пустой список.');
+      return [];
     }
-    
-    return newMaps;
     
   } catch (error) {
     logger.error('❌ Ошибка загрузки карт:', error as Error);
@@ -142,15 +159,21 @@ app.get('/api/maps/:id', async (req, res) => {
       return;
     }
     
-    // Если у карты нет детальной информации, получаем её
+    // Если у карты нет детальной информации, получаем её (если парсер доступен)
     if (!map.mapFiles || map.mapFiles.length === 0) {
       if (mapParser) {
-        map = await mapParser.getDetailedMapInfo(map);
-        // Обновляем в массиве
-        const index = allMaps.findIndex(m => m.mid === mapId);
-        if (index !== -1) {
-          allMaps[index] = map;
+        try {
+          map = await mapParser.getDetailedMapInfo(map);
+          // Обновляем в массиве
+          const index = allMaps.findIndex(m => m.mid === mapId);
+          if (index !== -1) {
+            allMaps[index] = map;
+          }
+        } catch (error) {
+          logger.warn(`⚠️ Не удалось получить детальную информацию для карты ${mapId}:`, error as Error);
         }
+      } else {
+        logger.warn(`⚠️ Парсер недоступен, детальная информация для карты ${mapId} недоступна`);
       }
     }
     
