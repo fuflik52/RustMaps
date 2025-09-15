@@ -1,0 +1,97 @@
+name: Parse RustMaps
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+on:
+  schedule:          # каждые 15 мин
+    - cron: '0 8 * * *' 
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - '.github/workflows/parse-maps.yml'
+
+jobs:
+  parse-maps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # нужен push
+
+    steps:
+    #--- подготовка ----------------------------------------------------------
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0        # иначе push может упасть
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libxcomposite1 \
+          libxdamage1 libxrandr2 libgbm1 libxss1 libasound2t64 libgtk-3-0
+
+    - name: Install npm deps (3 попытки)
+      run: |
+        for i in {1..3}; do
+          echo "npm ci attempt #$i"
+          npm ci --prefer-offline --no-audit && break
+          [[ $i == 3 ]] && exit 1
+          sleep 10
+        done
+
+    - name: Build project
+      run: npm run build
+
+    #--- запуск парсера ровно 600 с -----------------------------------------
+    - name: Parse maps (stop at 6000 s)
+      env:
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        FACEPUNCH_UPLOAD_ENABLED: 'true'
+      run: |
+        set +e                         # не завершаем job при exit 124
+        timeout 6000 npm start scan
+        code=$?
+        if [ $code -eq 124 ]; then     # 124 → время вышло, это «успех»
+          echo "Parser stopped after 6000 s as intended."
+          code=0
+        fi
+        exit $code
+
+    #--- фиксация результатов -----------------------------------------------
+    - name: Detect changes
+      id: changes
+      if: always()                     # даже после тайм-аута
+      run: |
+        git add -A output/
+        if git diff --cached --quiet; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true"  >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Commit & push
+      if: steps.changes.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name  "GitHub Action"
+        git commit -m "🤖 Update rustmaps cache $(date -u '+%Y-%m-%d %H:%M:%S UTC')" || true
+        git pull --rebase --autostash      # защитимся от гонки со следующим запуском
+        git push
+
+    #--- артефакт ------------------------------------------------------------
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: rustmaps-cache
+        path: output/rustmaps-cache.json
+        retention-days: 30

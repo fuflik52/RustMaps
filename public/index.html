@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RustMaps Browser - Браузер карт Rust</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
+            padding: 20px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 30px 0;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .search-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 300px;
+            padding: 12px 20px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 25px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #ff6b35;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .search-input::placeholder {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(45deg, #ff6b35, #f7931e);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255,107,53,0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #6c757d, #495057);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 8px 25px rgba(108,117,125,0.4);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 1.2rem;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #ff6b35;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .maps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+
+        .map-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .map-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            border-color: #ff6b35;
+        }
+
+        .map-header {
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(255,107,53,0.3), rgba(247,147,30,0.3));
+        }
+
+        .map-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #fff;
+            line-height: 1.3;
+        }
+
+        .map-id {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .map-body {
+            padding: 20px;
+        }
+
+        .map-description {
+            color: rgba(255,255,255,0.8);
+            line-height: 1.6;
+            margin-bottom: 15px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .map-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tag {
+            background: rgba(255,107,53,0.3);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .map-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            border-radius: 15px;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            padding: 10px 15px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .page-btn:hover {
+            border-color: #ff6b35;
+            background: rgba(255,107,53,0.2);
+        }
+
+        .page-btn.active {
+            background: linear-gradient(45deg, #ff6b35, #f7931e);
+            border-color: #ff6b35;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.5);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            color: #fff;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #2d2d2d, #1e1e1e);
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .modal-header {
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(255,107,53,0.3), rgba(247,147,30,0.3));
+            border-radius: 20px 20px 0 0;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .close {
+            color: #fff;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: #ff6b35;
+        }
+
+        .file-list {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .file-size {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .search-container {
+                flex-direction: column;
+            }
+            
+            .search-input {
+                min-width: auto;
+            }
+            
+            .stats {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .maps-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 2% auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>🗺️ RustMaps Browser</h1>
+            <p>Браузер карт Rust с сайта rustmaps.ru</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="controls">
+            <div class="search-container">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 Поиск карт по названию, описанию или тегам...">
+                <button id="searchBtn" class="btn">Найти</button>
+                <button id="refreshBtn" class="btn btn-secondary">🔄 Обновить</button>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    📊 Всего карт: <span id="totalMaps">0</span>
+                </div>
+                <div class="stat-item">
+                    📥 Скачано: <span id="downloadedCount">0</span>
+                </div>
+                <div class="stat-item">
+                    📄 Страница: <span id="currentPage">1</span>
+                </div>
+                <div class="stat-item">
+                    🕒 Последнее обновление: <span id="lastUpdate">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div>Загрузка карт...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="mapsContainer" class="maps-grid"></div>
+
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <!-- Модальное окно для детальной информации -->
+    <div id="mapModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close">&times;</span>
+                <h2 id="modalTitle">Детали карты</h2>
+                <p id="modalId">ID: -</p>
+            </div>
+            <div class="modal-body">
+                <div id="modalDescription"></div>
+                <div id="modalTags"></div>
+                <div id="modalFiles"></div>
+                <div id="modalActions"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Состояние приложения
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentSearch = '';
+        let allMaps = [];
+
+        // DOM элементы
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const mapsContainer = document.getElementById('mapsContainer');
+        const pagination = document.getElementById('pagination');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const modal = document.getElementById('mapModal');
+        const closeModal = document.querySelector('.close');
+
+        // Статистика
+        const totalMapsSpan = document.getElementById('totalMaps');
+        const downloadedCountSpan = document.getElementById('downloadedCount');
+        const currentPageSpan = document.getElementById('currentPage');
+        const lastUpdateSpan = document.getElementById('lastUpdate');
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMaps();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            searchBtn.addEventListener('click', handleSearch);
+            refreshBtn.addEventListener('click', handleRefresh);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleSearch();
+                }
+            });
+
+            // Модальное окно
+            closeModal.addEventListener('click', function() {
+                modal.style.display = 'none';
+            });
+
+            window.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        async function loadMaps(page = 1, search = '') {
+            showLoading(true);
+            hideError();
+
+            try {
+                const response = await fetch(`/api/maps?page=${page}&limit=20&search=${encodeURIComponent(search)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                displayMaps(data.maps);
+                updatePagination(data.page, data.totalPages, data.total);
+                updateStats(data.total);
+                
+                currentPage = data.page;
+                totalPages = data.totalPages;
+                currentSearch = search;
+
+            } catch (err) {
+                showError('Ошибка загрузки карт: ' + err.message);
+                console.error('Error loading maps:', err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayMaps(maps) {
+            if (maps.length === 0) {
+                mapsContainer.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: rgba(255,255,255,0.7);">
+                        <h3>Карты не найдены</h3>
+                        <p>Попробуйте изменить параметры поиска или обновить список карт</p>
+                    </div>
+                `;
+                return;
+            }
+
+            mapsContainer.innerHTML = maps.map(map => `
+                <div class="map-card" onclick="showMapDetails('${map.mid}')">
+                    <div class="map-header">
+                        <div class="map-title">${escapeHtml(map.title)}</div>
+                        <div class="map-id">ID: ${map.mid}</div>
+                    </div>
+                    <div class="map-body">
+                        <div class="map-description">
+                            ${escapeHtml(map.description || 'Описание отсутствует')}
+                        </div>
+                        ${map.tags && map.tags.length > 0 ? `
+                            <div class="map-tags">
+                                ${map.tags.slice(0, 6).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="map-actions">
+                            <button class="btn btn-small" onclick="event.stopPropagation(); showMapDetails('${map.mid}')">
+                                📋 Подробнее
+                            </button>
+                            ${map.url ? `
+                                <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); window.open('${map.url}', '_blank')">
+                                    🔗 Открыть
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updatePagination(page, totalPages, totalItems) {
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let paginationHTML = '';
+
+            // Кнопка "Предыдущая"
+            paginationHTML += `
+                <button class="page-btn" ${page <= 1 ? 'disabled' : ''} onclick="changePage(${page - 1})">
+                    ← Назад
+                </button>
+            `;
+
+            // Номера страниц
+            const startPage = Math.max(1, page - 2);
+            const endPage = Math.min(totalPages, page + 2);
+
+            if (startPage > 1) {
+                paginationHTML += `<button class="page-btn" onclick="changePage(1)">1</button>`;
+                if (startPage > 2) {
+                    paginationHTML += `<span class="page-btn" style="cursor: default;">...</span>`;
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHTML += `
+                    <button class="page-btn ${i === page ? 'active' : ''}" onclick="changePage(${i})">
+                        ${i}
+                    </button>
+                `;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHTML += `<span class="page-btn" style="cursor: default;">...</span>`;
+                }
+                paginationHTML += `<button class="page-btn" onclick="changePage(${totalPages})">${totalPages}</button>`;
+            }
+
+            // Кнопка "Следующая"
+            paginationHTML += `
+                <button class="page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="changePage(${page + 1})">
+                    Вперед →
+                </button>
+            `;
+
+            pagination.innerHTML = paginationHTML;
+        }
+
+        function updateStats(totalMaps) {
+            totalMapsSpan.textContent = totalMaps;
+            currentPageSpan.textContent = currentPage;
+            lastUpdateSpan.textContent = new Date().toLocaleString('ru-RU');
+        }
+
+        async function showMapDetails(mapId) {
+            try {
+                const response = await fetch(`/api/maps/${mapId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const map = await response.json();
+                
+                document.getElementById('modalTitle').textContent = map.title;
+                document.getElementById('modalId').textContent = `ID: ${map.mid}`;
+                
+                // Описание
+                document.getElementById('modalDescription').innerHTML = `
+                    <h3>📝 Описание</h3>
+                    <p>${escapeHtml(map.description || 'Описание отсутствует')}</p>
+                `;
+
+                // Теги
+                if (map.tags && map.tags.length > 0) {
+                    document.getElementById('modalTags').innerHTML = `
+                        <h3>🏷️ Теги</h3>
+                        <div class="map-tags">
+                            ${map.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('modalTags').innerHTML = '';
+                }
+
+                // Файлы
+                if (map.mapFiles && map.mapFiles.length > 0) {
+                    document.getElementById('modalFiles').innerHTML = `
+                        <h3>📁 Файлы карт</h3>
+                        <div class="file-list">
+                            ${map.mapFiles.map(file => `
+                                <div class="file-item">
+                                    <div class="file-info">
+                                        <div class="file-name">📄 ${escapeHtml(file.name)}</div>
+                                        <div class="file-size">Размер: ${file.size} | Загружен: ${file.uploadDate}</div>
+                                    </div>
+                                    <div class="file-actions">
+                                        ${file.downloadUrl ? `
+                                            <button class="btn btn-small" onclick="window.open('${file.downloadUrl}', '_blank')">
+                                                ⬇️ Скачать
+                                            </button>
+                                        ` : ''}
+                                        ${file.facepunchUrl ? `
+                                            <button class="btn btn-small btn-secondary" onclick="window.open('${file.facepunchUrl}', '_blank')">
+                                                🚀 Facepunch
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('modalFiles').innerHTML = `
+                        <h3>📁 Файлы карт</h3>
+                        <p style="color: rgba(255,255,255,0.7);">Файлы карт не найдены или еще не загружены</p>
+                    `;
+                }
+
+                // Действия
+                document.getElementById('modalActions').innerHTML = `
+                    <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                        ${map.url ? `
+                            <button class="btn" onclick="window.open('${map.url}', '_blank')">
+                                🔗 Открыть на rustmaps.ru
+                            </button>
+                        ` : ''}
+                        ${map.facepunchUrl ? `
+                            <button class="btn btn-secondary" onclick="window.open('${map.facepunchUrl}', '_blank')">
+                                🚀 Скачать с Facepunch
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+
+                modal.style.display = 'block';
+
+            } catch (err) {
+                showError('Ошибка загрузки деталей карты: ' + err.message);
+                console.error('Error loading map details:', err);
+            }
+        }
+
+        async function handleSearch() {
+            const searchTerm = searchInput.value.trim();
+            currentPage = 1;
+            await loadMaps(currentPage, searchTerm);
+        }
+
+        async function handleRefresh() {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 Обновление...';
+            
+            try {
+                const response = await fetch('/api/refresh', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadMaps(1, '');
+                    searchInput.value = '';
+                    showSuccess(`Обновлено! Найдено ${result.count} карт`);
+                } else {
+                    throw new Error(result.error || 'Ошибка обновления');
+                }
+            } catch (err) {
+                showError('Ошибка обновления: ' + err.message);
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Обновить';
+            }
+        }
+
+        function changePage(page) {
+            if (page >= 1 && page <= totalPages && page !== currentPage) {
+                loadMaps(page, currentSearch);
+            }
+        }
+
+        function showLoading(show) {
+            loading.style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        function hideError() {
+            error.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            // Простое уведомление об успехе
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(45deg, #28a745, #20c997);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 10px;
+                z-index: 1001;
+                font-weight: 600;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            `;
+            successDiv.textContent = message;
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Загрузка статистики при старте
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                
+                if (stats.totalDownloaded !== undefined) {
+                    downloadedCountSpan.textContent = stats.totalDownloaded;
+                }
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            }
+        }
+
+        // Загружаем статистику при инициализации
+        loadStats();
+    </script>
+</body>
+</html>
+
