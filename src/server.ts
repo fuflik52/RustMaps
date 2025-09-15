@@ -60,7 +60,9 @@ async function initializeComponents() {
     
   } catch (error) {
     logger.error('❌ Критическая ошибка инициализации:', error as Error);
-    logger.error('Stack trace:', (error as Error).stack);
+    if ((error as Error).stack) {
+      logger.error('Stack trace: ' + (error as Error).stack);
+    }
     throw error;
   }
 }
