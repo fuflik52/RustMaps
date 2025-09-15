@@ -32,6 +32,13 @@ jobs:
       with:
         node-version: '18'
 
+    - name: Network Diagnostics
+      run: |
+        echo "--- Running Network Diagnostics ---"
+        nslookup rustmaps.ru
+        curl -v https://rustmaps.ru
+        echo "--- End of Network Diagnostics ---"
+
     - name: Install system dependencies
       run: |
         sudo apt-get update -qq

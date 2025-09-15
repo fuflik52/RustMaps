@@ -15,68 +15,78 @@ export class MapParser {
 
   async parseMainPage(): Promise<MapData[]> {
     const page = await this.browserManager.createPage();
-    
-    try {
-      logger.info('Parsing main page rustmaps.ru...');
-      
-      await page.goto(this.baseUrl, { 
-        waitUntil: 'networkidle2',
-        timeout: 30000 
-      });
+    let attempt = 0;
+    const maxRetries = 3;
 
-      logger.info('Page loaded, extracting maps...');
-      
-      // Wait for map containers to load
-      await page.waitForSelector('.map-container', { timeout: 10000 });
-      
-      logger.info('Extracting map data...');
-      
-      const maps = await page.evaluate(() => {
-        const mapContainers = document.querySelectorAll('.map-container');
-        const results: any[] = [];
+    while (attempt < maxRetries) {
+      try {
+        logger.info(`Parsing main page rustmaps.ru (attempt ${attempt + 1}/${maxRetries})...`);
         
-        mapContainers.forEach((container) => {
-          try {
-            // data-url находится на .map-content внутри .map-container
-            const mapContent = container.querySelector('.map-content');
-            const dataUrl = mapContent?.getAttribute('data-url');
-            if (!dataUrl) return;
-            
-            const titleElement = container.querySelector('.map-title');
-            const title = titleElement?.textContent?.trim() || 'Untitled';
-            
-            // Extract map ID from data-url
-            const urlMatch = dataUrl.match(/mid=(\d+)/);
-            const mid = urlMatch ? urlMatch[1] : '';
-            
-            if (mid) {
-              results.push({
-                mid,
-                title,
-                url: dataUrl.startsWith('http') ? dataUrl : 'https://rustmaps.ru' + dataUrl,
-                description: '',
-                imageUrl: '',
-                mapFiles: [],
-                tags: []
-              });
-            }
-          } catch (error) {
-            console.error('Error processing map container:', error);
-          }
+        await page.goto(this.baseUrl, { 
+          waitUntil: 'networkidle2',
+          timeout: 30000 
         });
-        
-        return results;
-      });
 
-      logger.success(`Extracted ${maps.length} maps`);
-      return maps;
-      
-    } catch (error) {
-      logger.error('Error parsing main page:', error as Error);
-      throw error;
-    } finally {
-      await page.close();
+        logger.info('Page loaded, extracting maps...');
+        
+        // Wait for map containers to load
+        await page.waitForSelector('.map-container', { timeout: 10000 });
+        
+        logger.info('Extracting map data...');
+        
+        const maps = await page.evaluate(() => {
+          const mapContainers = document.querySelectorAll('.map-container');
+          const results: any[] = [];
+          
+          mapContainers.forEach((container) => {
+            try {
+              // data-url находится на .map-content внутри .map-container
+              const mapContent = container.querySelector('.map-content');
+              const dataUrl = mapContent?.getAttribute('data-url');
+              if (!dataUrl) return;
+              
+              const titleElement = container.querySelector('.map-title');
+              const title = titleElement?.textContent?.trim() || 'Untitled';
+              
+              // Extract map ID from data-url
+              const urlMatch = dataUrl.match(/mid=(\d+)/);
+              const mid = urlMatch ? urlMatch[1] : '';
+              
+              if (mid) {
+                results.push({
+                  mid,
+                  title,
+                  url: dataUrl.startsWith('http') ? dataUrl : 'https://rustmaps.ru' + dataUrl,
+                  description: '',
+                  imageUrl: '',
+                  mapFiles: [],
+                  tags: []
+                });
+              }
+            } catch (error) {
+              console.error('Error processing map container:', error);
+            }
+          });
+          
+          return results;
+        });
+
+        logger.success(`Extracted ${maps.length} maps`);
+        return maps;
+        
+      } catch (error) {
+        attempt++;
+        logger.error(`Error parsing main page (attempt ${attempt}/${maxRetries}):`, error as Error);
+        if (attempt >= maxRetries) {
+          logger.error('Max retries reached. Failing.');
+          throw error;
+        }
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
+      }
     }
+    // This part should be unreachable if maxRetries > 0, but typescript needs it.
+    return []; 
   }
 
   private generateTags(title: string, content: string): string[] {
@@ -104,108 +114,117 @@ export class MapParser {
    */
   async getDetailedMapInfo(mapData: MapData): Promise<MapData> {
     const page = await this.browserManager.createPage();
+    let attempt = 0;
+    const maxRetries = 3;
 
-    try {
-      logger.debug(`Getting detailed info for map ${mapData.mid}...`);
-      
-      await page.goto(mapData.url, { 
-        waitUntil: 'domcontentloaded',
-        timeout: 15000 
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Replaced waitForTimeout
-      
-      // Extract detailed information
-      const detailedInfo = await page.evaluate(() => {
-        const result: any = {
-          mapFiles: [],
-          content: '',
-          metadata: {}
-        };
+    while (attempt < maxRetries) {
+      try {
+        logger.debug(`Getting detailed info for map ${mapData.mid} (attempt ${attempt + 1}/${maxRetries})...`);
+        
+        await page.goto(mapData.url, { 
+          waitUntil: 'domcontentloaded',
+          timeout: 15000 
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Replaced waitForTimeout
+        
+        // Extract detailed information
+        const detailedInfo = await page.evaluate(() => {
+          const result: any = {
+            mapFiles: [],
+            content: '',
+            metadata: {}
+          };
 
-        // Extract map files from #mapfiles block
-        const mapFilesContainer = document.querySelector('#mapfiles');
-        if (mapFilesContainer) {
-          const mapFileElements = mapFilesContainer.querySelectorAll('.mapfile');
-          
-          mapFileElements.forEach((fileElement: any) => {
-            try {
-              const nameElement = fileElement.querySelector('.info .value');
-              const sizeElement = fileElement.querySelectorAll('.info .value')[1];
-              const linkElement = fileElement.querySelector('.info .value a[href]');
-              const dateElement = fileElement.querySelectorAll('.info .value')[3];
+          // Extract map files from #mapfiles block
+          const mapFilesContainer = document.querySelector('#mapfiles');
+          if (mapFilesContainer) {
+            const mapFileElements = mapFilesContainer.querySelectorAll('.mapfile');
+            
+            mapFileElements.forEach((fileElement: any) => {
+              try {
+                const nameElement = fileElement.querySelector('.info .value');
+                const sizeElement = fileElement.querySelectorAll('.info .value')[1];
+                const linkElement = fileElement.querySelector('.info .value a[href]');
+                const dateElement = fileElement.querySelectorAll('.info .value')[3];
 
-              if (nameElement && linkElement) {
-                const fileName = nameElement.textContent?.trim() || '';
-                const fileSize = sizeElement?.textContent?.trim() || '';
-                const downloadUrl = linkElement.getAttribute('href') || '';
-                const uploadDate = dateElement?.textContent?.trim() || '';
+                if (nameElement && linkElement) {
+                  const fileName = nameElement.textContent?.trim() || '';
+                  const fileSize = sizeElement?.textContent?.trim() || '';
+                  const downloadUrl = linkElement.getAttribute('href') || '';
+                  const uploadDate = dateElement?.textContent?.trim() || '';
 
-                console.log(`Found file: ${fileName}`);
-                
-                result.mapFiles.push({
-                  name: fileName,
-                  size: fileSize,
-                  downloadUrl: downloadUrl,
-                  uploadDate: uploadDate
-                });
+                  console.log(`Found file: ${fileName}`);
+                  
+                  result.mapFiles.push({
+                    name: fileName,
+                    size: fileSize,
+                    downloadUrl: downloadUrl,
+                    uploadDate: uploadDate
+                  });
+                }
+              } catch (error) {
+                console.error('Error extracting map file:', error);
               }
-            } catch (error) {
-              console.error('Error extracting map file:', error);
+            });
+          }
+
+          // Extract page content for tag generation
+          const contentElements = document.querySelectorAll('p, div.content, .description, .post-content, .map-description');
+          const contentTexts: string[] = [];
+          
+          contentElements.forEach((element: any) => {
+            const text = element.textContent?.trim();
+            if (text && text.length > 10) {
+              contentTexts.push(text);
             }
           });
-        }
 
-        // Extract page content for tag generation
-        const contentElements = document.querySelectorAll('p, div.content, .description, .post-content, .map-description');
-        const contentTexts: string[] = [];
-        
-        contentElements.forEach((element: any) => {
-          const text = element.textContent?.trim();
-          if (text && text.length > 10) {
-            contentTexts.push(text);
+          result.content = contentTexts.join(' ').trim();
+
+          // Extract metadata
+          const titleElement = document.querySelector('h1, .map-title');
+          if (titleElement) {
+            result.metadata.title = titleElement.textContent?.trim();
           }
+
+          // Try to find author
+          const authorElements = document.querySelectorAll('.author, .by, .uploaded-by');
+          authorElements.forEach((el: any) => {
+            const text = el.textContent?.trim();
+            if (text && !result.metadata.author) {
+              result.metadata.author = text;
+            }
+          });
+
+          return result;
         });
 
-        result.content = contentTexts.join(' ').trim();
+        // Generate tags from title and content
+        const tags = this.generateTags(mapData.title, detailedInfo.content);
 
-        // Extract metadata
-        const titleElement = document.querySelector('h1, .map-title');
-        if (titleElement) {
-          result.metadata.title = titleElement.textContent?.trim();
-        }
+        const result: MapData = {
+          ...mapData,
+          mapFiles: detailedInfo.mapFiles || [],
+          tags: tags,
+          description: detailedInfo.content.substring(0, 200) || mapData.description
+        };
 
-        // Try to find author
-        const authorElements = document.querySelectorAll('.author, .by, .uploaded-by');
-        authorElements.forEach((el: any) => {
-          const text = el.textContent?.trim();
-          if (text && !result.metadata.author) {
-            result.metadata.author = text;
-          }
-        });
-
+        logger.debug(`Found ${result.mapFiles?.length || 0} files for map ${mapData.mid}`);
         return result;
-      });
 
-      // Generate tags from title and content
-      const tags = this.generateTags(mapData.title, detailedInfo.content);
-
-      const result: MapData = {
-        ...mapData,
-        mapFiles: detailedInfo.mapFiles || [],
-        tags: tags,
-        description: detailedInfo.content.substring(0, 200) || mapData.description
-      };
-
-      logger.debug(`Found ${result.mapFiles?.length || 0} files for map ${mapData.mid}`);
-      return result;
-
-    } catch (error) {
-      logger.error(`Error getting detailed info for map ${mapData.mid}:`, error as Error);
-      return mapData;
-    } finally {
-      await page.close();
+      } catch (error) {
+        attempt++;
+        logger.error(`Error getting detailed info for map ${mapData.mid} (attempt ${attempt}/${maxRetries}):`, error as Error);
+        if (attempt >= maxRetries) {
+          logger.error(`Max retries reached for map ${mapData.mid}. Skipping.`);
+          return mapData; // Return original data if all retries fail
+        }
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
     }
+    // Fallback return
+    return mapData;
   }
 
   async getMapDownloadUrl(mapData: MapData): Promise<string | null> {
