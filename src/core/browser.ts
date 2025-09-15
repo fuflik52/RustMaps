@@ -16,18 +16,34 @@ export class BrowserManager {
     try {
       logger.info('Initializing browser...');
       
+      const args: string[] = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--window-size=1920,1080'
+      ];
+
+      // Optional proxy support
+      const proxyServer = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.ALL_PROXY || '';
+      if (proxyServer) {
+        args.push(`--proxy-server=${proxyServer}`);
+        logger.info(`Using browser proxy: ${proxyServer}`);
+      }
+
+      // Optional host resolver rules to force IPv4 for rustmaps.ru
+      const rustmapsIPv4 = process.env.RUSTMAPS_IPV4 || process.env.RUSTMAPS_FORCE_IPV4;
+      if (rustmapsIPv4) {
+        args.push(`--host-resolver-rules=MAP rustmaps.ru:${rustmapsIPv4},EXCLUDE localhost`);
+        logger.info(`Forcing rustmaps.ru to IPv4 ${rustmapsIPv4}`);
+      }
+
       this.browser = await puppeteer.launch({
         headless: this.options.headless, // 'new' is default for true now, or use 'shell' for old headless
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--window-size=1920,1080'
-        ],
+        args,
         defaultViewport: this.options.viewport,
         timeout: this.options.timeout
       });

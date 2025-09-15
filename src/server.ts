@@ -8,6 +8,7 @@ import { MapData } from './types';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as dotenv from 'dotenv';
+import { configureAxiosProxy, preflightConnectivity } from './core/network';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -42,13 +43,20 @@ async function initializeComponents() {
     // Пробуем инициализировать браузер (может не работать в production)
     try {
       logger.info('🌐 Инициализация браузера...');
+      // Configure axios proxy
+      configureAxiosProxy();
+      // Preflight connectivity and adjust base URL for parser
+      const preflight = await preflightConnectivity(DEFAULT_CONFIG.baseUrl, DEFAULT_CONFIG.timeout);
+      if (preflight.effectiveBaseUrl !== DEFAULT_CONFIG.baseUrl) {
+        logger.warn(`🌐 Preflight adjusted base URL: ${DEFAULT_CONFIG.baseUrl} -> ${preflight.effectiveBaseUrl} (${preflight.reason})`);
+      }
       browserManager = new BrowserManager();
       await browserManager.initialize();
       logger.success('✅ Браузер инициализирован');
       
       // Создаем парсер только если браузер инициализирован
       logger.info('🔍 Создание парсера...');
-      mapParser = new MapParser(browserManager, DEFAULT_CONFIG.baseUrl);
+      mapParser = new MapParser(browserManager, preflight.effectiveBaseUrl);
       logger.success('✅ Парсер создан');
     } catch (browserError) {
       logger.warn('⚠️ Браузер не может быть инициализирован (режим только кеша):', browserError as Error);

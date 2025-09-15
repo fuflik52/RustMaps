@@ -316,6 +316,30 @@ FACEPUNCH_UPLOAD_ENABLED=true
 
 # Optional: Delete local files after Facepunch upload
 DELETE_LOCAL_AFTER_UPLOAD=false
+
+# Optional network configuration
+# Base URL override for rustmaps
+# RUSTMAPS_BASE_URL=https://rustmaps.ru
+# Force HTTP fallback even if HTTPS fails preflight
+# FORCE_HTTP_FALLBACK=false
+# Network timeout in ms (shared across axios and Puppeteer default)
+# NETWORK_TIMEOUT_MS=15000
+# Concurrency and retries
+# CONCURRENCY=3
+# RETRY_ATTEMPTS=2
+# Headless mode for Puppeteer (true/false)
+# HEADLESS=true
+# Custom user agent for both browser and HTTP requests
+# USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+
+# Proxy configuration (auto-detected via proxy-agent)
+# HTTP_PROXY=http://user:pass@host:port
+# HTTPS_PROXY=http://user:pass@host:port
+# ALL_PROXY=socks5://host:port
+# NO_PROXY=localhost,127.0.0.1
+
+# Optional: force rustmaps.ru IPv4 mapping for browser (host-resolver-rules)
+# RUSTMAPS_IPV4=185.185.124.28
 ```
 
 ### GitHub Actions Setup

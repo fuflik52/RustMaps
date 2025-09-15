@@ -7,6 +7,7 @@ import { FileDownloader } from './downloader/fileDownloader';
 import { logger, LogLevel } from './utils/logger';
 import { CacheManager } from './core/cacheManager';
 import { DEFAULT_CONFIG } from './config/defaults';
+import { configureAxiosProxy, preflightConnectivity } from './core/network';
 import { WEBHOOK_CONFIG, FACEPUNCH_CONFIG } from './config';
 import { DiscordWebhook } from './discord/webhook';
 import { FacepunchUploader } from './uploader/facepunchUploader';
@@ -28,6 +29,16 @@ async function scanForMaps(outputDir: string): Promise<void> {
   
   try {
     logger.info('🔍 Starting map search on rustmaps.ru...');
+    // Configure axios proxy support from env
+    configureAxiosProxy();
+
+    // Connectivity preflight and potential HTTP fallback
+    const preflight = await preflightConnectivity(DEFAULT_CONFIG.baseUrl, Math.min(DEFAULT_CONFIG.timeout, 7000));
+    if (preflight.effectiveBaseUrl !== DEFAULT_CONFIG.baseUrl) {
+      logger.warn(`🌐 Connectivity preflight adjusted base URL: ${DEFAULT_CONFIG.baseUrl} -> ${preflight.effectiveBaseUrl} (${preflight.reason})`);
+    } else {
+      logger.debug(`🌐 Connectivity preflight: ${preflight.reason}`);
+    }
     
     // Initialize webhook
     if (WEBHOOK_CONFIG.enabled) {
@@ -47,7 +58,7 @@ async function scanForMaps(outputDir: string): Promise<void> {
     const page = await browserManager.createPage();
     
     // Create map parser
-    const mapParser = new MapParser(browserManager, DEFAULT_CONFIG.baseUrl);
+    const mapParser = new MapParser(browserManager, preflight.effectiveBaseUrl);
     const downloader = new FileDownloader(outputDir);
     await downloader.initialize();
     

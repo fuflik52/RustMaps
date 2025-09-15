@@ -7,6 +7,7 @@ import { DEFAULT_CONFIG } from '../config/defaults';
 import sanitize from 'sanitize-filename';
 import pLimit from 'p-limit';
 import { CacheManager } from '../core/cacheManager';
+import { configureAxiosProxy } from '../core/network';
 
 export class FileDownloader {
   private outputDir: string;
@@ -27,6 +28,8 @@ export class FileDownloader {
     this.timeout = DEFAULT_CONFIG.timeout;
     this.retryAttempts = retryAttempts;
     this.cacheManager = new CacheManager(outputDir);
+    // Ensure axios respects proxy envs for downloads as well
+    configureAxiosProxy();
   }
 
   async initialize(): Promise<void> {
