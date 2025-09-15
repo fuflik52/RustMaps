@@ -104,6 +104,20 @@ async function loadMaps(): Promise<MapData[]> {
 
 // API Routes
 
+// Проверка состояния сервера
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    initialized: isInitialized,
+    components: {
+      cacheManager: !!cacheManager,
+      browserManager: !!browserManager,
+      mapParser: !!mapParser
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Получить все карты
 app.get('/api/maps', async (req, res) => {
   try {
