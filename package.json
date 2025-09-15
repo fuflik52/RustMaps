@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:scan": "node dist/index.js scan",
     "dev": "ts-node src/index.ts",
     "web": "ts-node src/server.ts",
     "clean": "rimraf dist downloads",

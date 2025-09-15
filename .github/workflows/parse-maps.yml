@@ -59,7 +59,7 @@ jobs:
         FACEPUNCH_UPLOAD_ENABLED: 'true'
       run: |
         set +e                         # не завершаем job при exit 124
-        timeout 6000 npm start scan
+        timeout 6000 npm run start:scan
         code=$?
         if [ $code -eq 124 ]; then     # 124 → время вышло, это «успех»
           echo "Parser stopped after 6000 s as intended."
