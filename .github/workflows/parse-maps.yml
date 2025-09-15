@@ -43,11 +43,22 @@ jobs:
     - name: Install npm deps (3 попытки)
       run: |
         for i in {1..3}; do
-          echo "npm ci attempt #$i"
-          npm ci --prefer-offline --no-audit && break
+          echo "npm install attempt #$i"
+          npm install --prefer-offline --no-audit && break
           [[ $i == 3 ]] && exit 1
           sleep 10
         done
+
+    - name: Check for package-lock.json changes
+      run: |
+        if [ -n "$(git diff --name-only package-lock.json)" ]; then
+          echo "package-lock.json was updated during npm install"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add package-lock.json
+          git commit -m "🔧 Update package-lock.json" || echo "No changes to commit"
+          git push || echo "Failed to push package-lock.json update"
+        fi
 
     - name: Build project
       run: npm run build
