@@ -138,7 +138,8 @@ app.get('/api/maps/:id', async (req, res) => {
     let map = allMaps.find(m => m.mid === mapId);
     
     if (!map) {
-      return res.status(404).json({ error: 'Карта не найдена' });
+      res.status(404).json({ error: 'Карта не найдена' });
+      return;
     }
     
     // Если у карты нет детальной информации, получаем её
@@ -187,7 +188,8 @@ app.get('/api/stats', async (req, res) => {
     await initializeComponents();
     
     if (!cacheManager) {
-      return res.status(500).json({ error: 'Кеш-менеджер не инициализирован' });
+      res.status(500).json({ error: 'Кеш-менеджер не инициализирован' });
+      return;
     }
     
     const stats = cacheManager.getStats();
