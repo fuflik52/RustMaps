@@ -32,6 +32,9 @@ jobs:
       with:
         node-version: '18'
 
+    - name: Bypass DNS Resolution Failure
+      run: echo "185.185.124.28 rustmaps.ru" | sudo tee -a /etc/hosts
+
     - name: Network Diagnostics
       run: |
         echo "--- Running Network Diagnostics ---"
